@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-import sys, os
+import sys, os, time
 import qiniu.rs, qiniu.resumable_io
 from config import *
 from subprocess import call
+
+def date():
+    return time.strftime('%Y-%m-%d',time.localtime(time.time()))
 
 def upload(file_name):
     policy = qiniu.rs.PutPolicy('%s:%s' % (BUCKET_NAME, file_name))
@@ -15,18 +18,21 @@ def upload(file_name):
     return ret
 
 def backup(db_name):
+    dot_sql_file = '%s.sql' % db_name
+    dot_tar_file = '%s.%s.sql.gz' % (date(), db_name)
+
     print 'Dump database: %s' % db_name
-    call(['mysqldump', '-u', DB_USER, '-p%s' % DB_PASS, db_name, '--result-file', '%s.sql' % db_name])
+    call(['mysqldump', '-u', DB_USER, '-p%s' % DB_PASS, db_name, '--result-file', dot_sql_file])
 
     print 'Make tar file'
-    call(['tar', '-zcf', '%s.sql.gz' % db_name, '%s.sql' % db_name])
+    call(['tar', '-zcf', dot_tar_file, dot_sql_file])
 
     print 'Upload'
-    upload('%s.sql.gz' % db_name)
+    upload(dot_tar_file)
 
     print 'Remove tar file'
-    os.remove('%s.sql' % db_name)
-    os.remove('%s.sql.gz' % db_name)
+    os.remove(dot_sql_file)
+    os.remove(dot_tar_file)
 
     print 'Backup complete\n'
 
