@@ -1,14 +1,21 @@
 # -*- coding: utf-8 -*-
-import sys, os, time
+import sys, os, datetime
 import qiniu.rs, qiniu.resumable_io
 from config import *
 from subprocess import call
 
 def date():
-    return time.strftime('%Y-%m-%d',time.localtime(time.time()))
+    now = datetime.datetime.now()
+    return now.strftime('%Y-%m-%d')
+
+def expire_date():
+    now_time = datetime.datetime.now()
+    expire_time = now_time + datetime.timedelta(days=-BUCKET_KEEP_TIME)
+    expire_date = expire_time.strftime('%Y-%m-%d')
+    return expire_date
 
 def upload(file_name):
-    policy = qiniu.rs.PutPolicy('%s:%s' % (BUCKET_NAME, file_name))
+    policy = qiniu.rs.PutPolicy(BUCKET_NAME)
     uptoken = policy.token()
     
     extra = qiniu.resumable_io.PutExtra(BUCKET_NAME)
@@ -16,6 +23,11 @@ def upload(file_name):
 
     ret, err = qiniu.resumable_io.put_file(uptoken, file_name, file_name, extra)
     return ret
+
+def delete(db_name):
+    file_name = '%s.%s.sql.gz' % (expire_date(), db_name)
+    ret, err = qiniu.rs.Client().delete(BUCKET_NAME, file_name)
+    return ret, err
 
 def backup(db_name):
     dot_sql_file = '%s.sql' % db_name
@@ -33,6 +45,9 @@ def backup(db_name):
     print 'Remove tar file'
     os.remove(dot_sql_file)
     os.remove(dot_tar_file)
+
+    print 'Remove backup file %s days before' % BUCKET_KEEP_TIME
+    delete(db_name)
 
     print 'Backup complete\n'
 
